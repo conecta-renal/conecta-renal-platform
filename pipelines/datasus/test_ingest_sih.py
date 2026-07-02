@@ -9,12 +9,13 @@ nada em `output/` nem em qualquer outro local do disco.
 Uso:
     python test_ingest_sih.py
 
-Objetivo: validar a conexão FTP, a estrutura do DBF e o filtro de CIDs
-renais antes de rodar o pipeline completo (`ingest_sih.py`).
+Objetivo: validar a conexão FTP, a estrutura do arquivo (.dbc) e o filtro
+de CIDs renais antes de rodar o pipeline completo (`ingest_sih.py`).
 """
 
 from __future__ import annotations
 
+import logging
 import tempfile
 from datetime import date
 from ftplib import error_perm
@@ -22,13 +23,10 @@ from pathlib import Path
 
 from ingest_sih import (
     CID_RENAIS,
-    FTP_REMOTE_BASE,
     conectar_ftp,
-    dbf_para_dataframe,
+    dbc_para_dataframe,
     filtrar_cids_renais,
 )
-
-import logging
 
 UF_TESTE = "SP"
 MESES_A_TENTAR = 3
@@ -60,22 +58,19 @@ def ultimos_meses(qtd: int) -> list[tuple[int, int]]:
     return meses
 
 
-def encontrar_arquivo_mais_recente(ftp, uf: str, logger: logging.Logger) -> tuple[str, str] | None:
+def encontrar_arquivo_mais_recente(ftp, uf: str, logger: logging.Logger) -> str | None:
     """Tenta localizar, entre os últimos MESES_A_TENTAR meses, o primeiro
-    arquivo DBF existente no FTP. Retorna (remote_path, nome_arquivo) ou
-    None se nenhum for encontrado."""
+    arquivo .dbc existente no FTP (assume que a conexão já está no
+    diretório remoto correto). Retorna o nome do arquivo ou None."""
     for ano, mes in ultimos_meses(MESES_A_TENTAR):
         aa = ano % 100
-        nome_arquivo = f"RD{uf}{aa:02d}{mes:02d}.dbf"
-        remote_dir = f"{FTP_REMOTE_BASE}/{ano}"
-        remote_path = f"{remote_dir}/{nome_arquivo}"
+        nome_arquivo = f"RD{uf}{aa:02d}{mes:02d}.dbc"
 
         try:
-            ftp.cwd(remote_dir)
-            tamanho = ftp.size(remote_path)
+            tamanho = ftp.size(nome_arquivo)
             if tamanho is not None:
                 logger.info("Arquivo encontrado: %s (%s bytes)", nome_arquivo, tamanho)
-                return remote_path, nome_arquivo
+                return nome_arquivo
         except error_perm:
             logger.info("Não encontrado: %s. Tentando mês anterior...", nome_arquivo)
             continue
@@ -91,25 +86,23 @@ def main() -> None:
     logger.info("Conexão FTP estabelecida com sucesso.")
 
     try:
-        encontrado = encontrar_arquivo_mais_recente(ftp, UF_TESTE, logger)
-        if encontrado is None:
+        nome_arquivo = encontrar_arquivo_mais_recente(ftp, UF_TESTE, logger)
+        if nome_arquivo is None:
             logger.error(
                 "Nenhum arquivo encontrado para UF=%s nos últimos %s meses.",
                 UF_TESTE, MESES_A_TENTAR,
             )
             return
 
-        remote_path, nome_arquivo = encontrado
-
         with tempfile.TemporaryDirectory() as tmp_dir:
             local_path = Path(tmp_dir) / nome_arquivo
 
             logger.info("Baixando '%s' para pasta temporária...", nome_arquivo)
             with open(local_path, "wb") as fh:
-                ftp.retrbinary(f"RETR {remote_path}", fh.write)
+                ftp.retrbinary(f"RETR {nome_arquivo}", fh.write)
 
-            logger.info("Convertendo DBF para DataFrame...")
-            df = dbf_para_dataframe(local_path)
+            logger.info("Descomprimindo .dbc e convertendo para DataFrame...")
+            df = dbc_para_dataframe(local_path)
             # `local_path` está em um diretório temporário que será apagado
             # automaticamente ao sair do bloco `with` — nada fica em disco.
 

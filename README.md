@@ -156,6 +156,27 @@ para produção, refaça os passos abaixo antes de rodar a pipeline:**
    (ex: criar os grupos manualmente e remover os recursos `azuread_group`
    do Terraform), dependendo da política de segurança da organização.
 
+4. **Concessão de role RBAC de dados ao Service Principal no storage
+   account** (necessário para `pipelines/datasus/ingest_sih.py` escrever no
+   Data Lake)
+   O role `Contributor` (atribuído ao Service Principal na assinatura, para
+   o Terraform gerenciar recursos) **não** dá acesso a ler/escrever dados
+   dentro do storage account — Azure Storage separa permissões de
+   gerenciamento (plano de controle) das de dados (plano de dados). Sem a
+   role abaixo, o pipeline falha ao tentar gravar no container `bronze`.
+   ```bash
+   storageId=$(az storage account show --name stconectarenaldev \
+     --resource-group rg-conecta-renal-dev --query id -o tsv)
+
+   az role assignment create \
+     --assignee <APP_ID_DO_SERVICE_PRINCIPAL> \
+     --role "Storage Blob Data Contributor" \
+     --scope "$storageId"
+   ```
+   Essa concessão é escopada apenas ao storage account `stconectarenaldev`
+   (não à assinatura toda), então o impacto de segurança é limitado a esse
+   recurso.
+
 ## Contribuição
 
 Padrão de nomenclatura de branches:
