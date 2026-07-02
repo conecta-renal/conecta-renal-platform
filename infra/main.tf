@@ -236,6 +236,67 @@ resource "databricks_sql_global_config" "this" {
 }
 
 # ---------------------------------------------------------------------------
+# Unity Catalog - acesso ao ADLS via External Location
+#
+# O workspace usa Unity Catalog (confirmado: catalogo "dbw_conecta_renal_dev"
+# ja existe por padrao). Warehouses serverless *exigem* Unity Catalog para
+# acessar dados externos (abfss://) - o databricks_sql_global_config acima
+# (baseado em chave de storage, estilo Hive metastore classico) nao se
+# aplica aqui. Sem uma External Location registrada, qualquer CREATE
+# TABLE/leitura apontando para o storage account falha com
+# NO_PARENT_EXTERNAL_LOCATION_FOR_PATH.
+# ---------------------------------------------------------------------------
+
+resource "azurerm_databricks_access_connector" "adls" {
+  name                = "dbac-conecta-renal-adls"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  tags = local.common_tags
+}
+
+resource "azurerm_role_assignment" "access_connector_storage" {
+  scope                = azurerm_storage_account.datalake.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_databricks_access_connector.adls.identity[0].principal_id
+}
+
+resource "databricks_storage_credential" "adls" {
+  name = "cred-conecta-renal-adls"
+
+  azure_managed_identity {
+    access_connector_id = azurerm_databricks_access_connector.adls.id
+  }
+
+  depends_on = [azurerm_role_assignment.access_connector_storage]
+}
+
+resource "databricks_external_location" "bronze" {
+  name            = "ext-loc-conecta-renal-bronze"
+  url             = "abfss://bronze@${azurerm_storage_account.datalake.name}.dfs.core.windows.net/"
+  credential_name = databricks_storage_credential.adls.name
+
+  depends_on = [databricks_storage_credential.adls]
+}
+
+# Concede a todos os usuarios da conta permissao para ler/escrever arquivos
+# e criar tabelas externas sobre essa External Location - sem isso, so o
+# Service Principal que a criou consegue usa-la (mesma questao de
+# visibilidade do SQL Warehouse/Job).
+resource "databricks_grants" "bronze_external_location" {
+  external_location = databricks_external_location.bronze.name
+
+  grant {
+    principal  = "account users"
+    privileges = ["CREATE_EXTERNAL_TABLE", "READ_FILES", "WRITE_FILES"]
+  }
+}
+
+# ---------------------------------------------------------------------------
 # Databricks Job - ingestao SIH-SUS (equivalente a um Glue Job: compute
 # efemero que sobe so para a execucao e desliga ao final)
 # ---------------------------------------------------------------------------
