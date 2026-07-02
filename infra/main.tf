@@ -192,6 +192,19 @@ resource "databricks_sql_endpoint" "main" {
   max_num_clusters = 1
 }
 
+# O Databricks tem seu proprio modelo de permissoes (separado do RBAC do
+# Azure). Sem isso, o warehouse fica visivel/utilizavel apenas para o
+# Service Principal que o criou via Terraform, nao para os usuarios
+# humanos do workspace (mesmo sendo admins da assinatura Azure).
+resource "databricks_permissions" "sql_endpoint_usage" {
+  sql_endpoint_id = databricks_sql_endpoint.main.id
+
+  access_control {
+    group_name       = "users"
+    permission_level = "CAN_USE"
+  }
+}
+
 # Secret scope + secret com a chave da conta de armazenamento, usados para
 # dar ao SQL Warehouse acesso de leitura/escrita ao ADLS via
 # databricks_sql_global_config abaixo. A chave nunca fica em texto puro no
@@ -257,5 +270,16 @@ resource "databricks_job" "ingest_sih" {
         meses = "3"
       }
     }
+  }
+}
+
+# Mesma questao de visibilidade do SQL Warehouse: sem isso, so o Service
+# Principal que criou o job (via Terraform) consegue ve-lo/roda-lo.
+resource "databricks_permissions" "job_usage" {
+  job_id = databricks_job.ingest_sih.id
+
+  access_control {
+    group_name       = "users"
+    permission_level = "CAN_MANAGE_RUN"
   }
 }
