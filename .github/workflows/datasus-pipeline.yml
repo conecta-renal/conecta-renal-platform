@@ -1,0 +1,43 @@
+name: DATASUS Pipeline CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "pipelines/datasus/**"
+  push:
+    branches:
+      - main
+    paths:
+      - "pipelines/datasus/**"
+
+defaults:
+  run:
+    working-directory: pipelines/datasus
+
+jobs:
+  lint:
+    name: Lint & Syntax Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8
+
+      - name: Syntax check
+        run: python -m py_compile ingest_sih.py
+
+      - name: Lint with flake8
+        run: flake8 ingest_sih.py --max-line-length=120
