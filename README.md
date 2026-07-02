@@ -189,6 +189,34 @@ para produção, refaça os passos abaixo antes de rodar a pipeline:**
    bronze. Precisa ser reexecutado após novas cargas do pipeline para
    refletir os dados mais recentes (não há, ainda, automação de refresh).
 
+6. **Concessão de `User Access Administrator` ao Service Principal, escopada
+   ao storage account** (necessário para o Terraform criar a role assignment
+   do Access Connector do Unity Catalog — `azurerm_role_assignment.access_connector_storage`
+   em `main.tf`)
+   O role `Contributor` do Service Principal permite gerenciar recursos, mas
+   **não** permite criar/gerenciar atribuições de RBAC (`Microsoft.Authorization/roleAssignments/write`)
+   — no Azure, só quem tem `Owner` ou `User Access Administrator` pode
+   conceder acesso a outros. Sem isso, o `terraform apply` falha com
+   `AuthorizationFailed` ao tentar criar a role assignment que dá ao Access
+   Connector do Databricks permissão de leitura/escrita no storage account.
+   ```bash
+   storageId=$(az storage account show --name stconectarenaldev \
+     --resource-group rg-conecta-renal-dev --query id -o tsv)
+
+   az role assignment create \
+     --assignee <APP_ID_DO_SERVICE_PRINCIPAL> \
+     --role "User Access Administrator" \
+     --scope "$storageId"
+   ```
+   ⚠️ Essa é a concessão mais sensível das listadas aqui: dá ao Service
+   Principal poder de conceder/revogar **qualquer** role a **qualquer**
+   principal, mas apenas dentro do escopo do storage account
+   `stconectarenaldev` (não a assinatura toda). Optamos por isso em vez de
+   fazer a role assignment manualmente fora do Terraform para manter a
+   infraestrutura como código completa e reproduzível — quem rodar o
+   `terraform apply` do zero num ambiente novo não precisa de nenhum passo
+   manual adicional além deste.
+
 ## Contribuição
 
 Padrão de nomenclatura de branches:
