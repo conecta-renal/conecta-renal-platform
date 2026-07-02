@@ -41,7 +41,7 @@ jobs:
       - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="resource_group_name=rg-conecta-renal-dev" \
+            -backend-config="resource_group_name=rg-conecta-renal-tfstate" \
             -backend-config="storage_account_name=stconectarenaltf" \
             -backend-config="container_name=tfstate" \
             -backend-config="key=conecta-renal.tfstate"
@@ -75,7 +75,7 @@ jobs:
       - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="resource_group_name=rg-conecta-renal-dev" \
+            -backend-config="resource_group_name=rg-conecta-renal-tfstate" \
             -backend-config="storage_account_name=stconectarenaltf" \
             -backend-config="container_name=tfstate" \
             -backend-config="key=conecta-renal.tfstate"
