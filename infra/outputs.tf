@@ -32,3 +32,8 @@ output "databricks_sql_warehouse_name" {
   description = "Nome do SQL Warehouse do Databricks usado para consultas SQL sobre as tabelas (ex: Power BI, SQL Editor)."
   value       = databricks_sql_endpoint.main.name
 }
+
+output "databricks_ingest_job_name" {
+  description = "Nome do Databricks Job que roda a ingestão SIH-SUS sob demanda (equivalente a um Glue Job)."
+  value       = databricks_job.ingest_sih.name
+}
