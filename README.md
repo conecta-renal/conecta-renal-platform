@@ -177,6 +177,18 @@ para produção, refaça os passos abaixo antes de rodar a pipeline:**
    (não à assinatura toda), então o impacto de segurança é limitado a esse
    recurso.
 
+5. **Criação da tabela Delta `bronze_sih` a partir do Parquet gravado pelo
+   pipeline** (não é infraestrutura, é uma operação de dado — por isso não
+   está no Terraform)
+   Depois que `pipelines/datasus/ingest_sih.py` já tiver gravado ao menos um
+   mês de dados no container `bronze`, rode manualmente no **Databricks SQL
+   Editor** (conectado ao SQL Warehouse `sqlwh-conecta-renal-dev`, criado
+   pelo Terraform) o script `pipelines/datasus/sql/create_bronze_sih_table.sql`.
+   Ele cria/atualiza a tabela `bronze_sih` em formato Delta, permitindo
+   consulta SQL direta (Databricks SQL, Power BI, etc.) sobre os dados do
+   bronze. Precisa ser reexecutado após novas cargas do pipeline para
+   refletir os dados mais recentes (não há, ainda, automação de refresh).
+
 ## Contribuição
 
 Padrão de nomenclatura de branches:

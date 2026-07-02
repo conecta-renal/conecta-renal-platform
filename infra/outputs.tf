@@ -27,3 +27,8 @@ output "key_vault_uri" {
   description = "URI do Azure Key Vault usado para armazenar secrets das APIs externas (DataSUS, LIS, WhatsApp)."
   value       = azurerm_key_vault.main.vault_uri
 }
+
+output "databricks_sql_warehouse_name" {
+  description = "Nome do SQL Warehouse do Databricks usado para consultas SQL sobre as tabelas (ex: Power BI, SQL Editor)."
+  value       = databricks_sql_endpoint.main.name
+}
