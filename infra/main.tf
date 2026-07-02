@@ -247,8 +247,8 @@ resource "databricks_job" "ingest_sih" {
   }
 
   task {
-    task_key         = "ingest"
-    job_cluster_key  = "main"
+    task_key        = "ingest"
+    job_cluster_key = "main"
 
     notebook_task {
       notebook_path = databricks_notebook.ingest_sih_job.path
