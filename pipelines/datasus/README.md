@@ -187,26 +187,49 @@ tabelas acima).
 
 ## Variáveis de ambiente disponíveis
 
-| Variável         | Descrição                                                        | Default |
-|-------------------|-------------------------------------------------------------------|---------|
-| `DATASUS_UF`      | UF (sigla) cujos arquivos serão baixados                          | `SP`    |
-| `DATASUS_MESES`   | Janela de meses anteriores à data de execução a serem processados | `24`    |
+| Variável                | Descrição                                                        | Default              |
+|--------------------------|-------------------------------------------------------------------|-----------------------|
+| `DATASUS_UF`            | UF (sigla) cujos arquivos serão baixados                          | `SP`                  |
+| `DATASUS_MESES`         | Janela de meses anteriores à data de execução a serem processados | `24`                  |
+| `AZURE_STORAGE_ACCOUNT` | Storage account (ADLS Gen2) onde os dados serão gravados           | `stconectarenaldev`   |
+| `AZURE_TENANT_ID`       | Tenant ID do Service Principal usado para autenticar no ADLS       | *(obrigatório)*       |
+| `AZURE_CLIENT_ID`       | Client ID do Service Principal usado para autenticar no ADLS       | *(obrigatório)*       |
+| `AZURE_CLIENT_SECRET`   | Client Secret do Service Principal usado para autenticar no ADLS   | *(obrigatório)*       |
 
 Exemplo:
 
 ```bash
-DATASUS_UF=RJ DATASUS_MESES=12 python ingest_sih.py
+DATASUS_UF=RJ DATASUS_MESES=12 \
+AZURE_TENANT_ID=... AZURE_CLIENT_ID=... AZURE_CLIENT_SECRET=... \
+python ingest_sih.py
 ```
+
+> O Service Principal usado precisa da role `Storage Blob Data Contributor`
+> no storage account de destino (permissão de dados, separada da role de
+> gerenciamento `Contributor` usada pelo Terraform) — sem ela, a escrita no
+> ADLS falha com erro de autorização.
 
 ## Saída gerada
 
-- **Dados (camada bronze)**: `output/bronze/sih/ano={ano}/mes={mes}/data.parquet`
-  — um arquivo Parquet por ano/mês, já filtrado pelos CIDs renais e com
-  apenas as colunas relevantes para o Conecta Renal.
-- **Logs**: `output/logs/sih_{timestamp}.log` — um log por execução, com
-  detalhes de cada arquivo processado (registros originais, registros
+- **Dados (camada bronze)**: gravados diretamente no Azure Data Lake
+  Storage Gen2, container `bronze`, em
+  `sih/ano={ano}/mes={mes}/data.parquet` — um arquivo Parquet por ano/mês,
+  já filtrado pelos CIDs renais e com apenas as colunas relevantes para o
+  Conecta Renal. Não é gravado nada em disco local (além de arquivos
+  temporários que são apagados ao final de cada mês processado).
+- **Logs**: `output/logs/sih_{timestamp}.log` — um log local por execução,
+  com detalhes de cada arquivo processado (registros originais, registros
   filtrados, tamanho do parquet, tempo de execução).
 - Um resumo final também é impresso no console ao término da execução.
+
+## Rodando via GitHub Actions
+
+O workflow `.github/workflows/ingest-sih.yml` roda o pipeline sob demanda
+(`workflow_dispatch`), usando os secrets `AZURE_TENANT_ID`,
+`AZURE_CLIENT_ID` e `AZURE_CLIENT_SECRET` já cadastrados no repositório —
+não expõe nenhuma credencial no log. Parâmetros `uf` e `meses` podem ser
+ajustados na tela de execução manual (Actions → Ingest SIH-SUS → Run
+workflow).
 
 ## CIDs filtrados
 

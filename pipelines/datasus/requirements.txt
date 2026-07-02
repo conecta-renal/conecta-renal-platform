@@ -2,3 +2,5 @@ dbfread
 pandas
 pyarrow
 pyreaddbc
+azure-identity
+azure-storage-file-datalake
