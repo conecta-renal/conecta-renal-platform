@@ -111,6 +111,51 @@ conecta-renal-platform/
 └── .gitignore
 ```
 
+## Passos manuais realizados fora da pipeline
+
+A pipeline (`terraform.yml` / `bootstrap.yml`) cobre a maior parte do
+provisionamento, mas algumas ações precisaram ser feitas manualmente via
+Azure CLI/Portal, fora de qualquer workflow. **Ao replicar este ambiente
+para produção, refaça os passos abaixo antes de rodar a pipeline:**
+
+1. **Criação do Service Principal usado pelo Terraform/GitHub Actions**
+   ```bash
+   az ad sp create-for-rbac --name "github-actions-conecta-renal" \
+     --role Contributor \
+     --scopes /subscriptions/<SUBSCRIPTION_ID>
+   ```
+   O `appId`/`password`/`tenant` retornados viram os secrets `AZURE_CLIENT_ID`,
+   `AZURE_CLIENT_SECRET` e `AZURE_TENANT_ID` no GitHub.
+
+2. **Registro do Resource Provider `Microsoft.Storage` na assinatura**
+   Necessário antes de criar qualquer Storage Account (inclusive o backend
+   do Terraform). Sem isso, `az storage account create` falha com erro
+   `SubscriptionNotFound` (mensagem enganosa — o problema real é o provider
+   não registrado).
+   ```bash
+   az provider register --namespace Microsoft.Storage
+   az provider show --namespace Microsoft.Storage --query registrationState -o tsv
+   # aguardar até retornar "Registered" (pode levar alguns minutos)
+   ```
+
+3. **Concessão de permissão Microsoft Graph ao Service Principal para criar
+   grupos no Entra ID** (`azuread_group.*` no `main.tf`)
+   Sem isso, o `terraform apply` falha com
+   `Authorization_RequestDenied: Insufficient privileges to complete the operation`.
+   ```bash
+   az ad app permission add --id <APP_ID_DO_SERVICE_PRINCIPAL> \
+     --api 00000003-0000-0000-c000-000000000000 \
+     --api-permissions 62a82d76-70ea-41e2-9197-370581804d09=Role
+   # 62a82d76-70ea-41e2-9197-370581804d09 = Group.ReadWrite.All (Application)
+
+   az ad app permission admin-consent --id <APP_ID_DO_SERVICE_PRINCIPAL>
+   ```
+   ⚠️ `Group.ReadWrite.All` dá ao Service Principal permissão para
+   criar/editar/excluir **qualquer** grupo do tenant, não só os grupos do
+   projeto. Avalie se em produção vale a pena restringir esse escopo
+   (ex: criar os grupos manualmente e remover os recursos `azuread_group`
+   do Terraform), dependendo da política de segurança da organização.
+
 ## Contribuição
 
 Padrão de nomenclatura de branches:
