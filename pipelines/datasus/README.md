@@ -231,6 +231,28 @@ não expõe nenhuma credencial no log. Parâmetros `uf` e `meses` podem ser
 ajustados na tela de execução manual (Actions → Ingest SIH-SUS → Run
 workflow).
 
+## Rodando via Databricks Job
+
+Existe também uma versão adaptada do pipeline em
+`databricks/ingest_sih_job.py`, empacotada como **Databricks Job**
+(`job-ingest-sih-conecta-renal`, provisionado via Terraform) — o
+equivalente, dentro do Azure, a um Glue Job da AWS: um cluster efêmero que
+sobe só para a execução e desliga ao final.
+
+Para disparar manualmente: **Databricks → Workflows → Jobs →
+job-ingest-sih-conecta-renal → Run now** (os parâmetros `uf` e `meses`
+podem ser ajustados na tela de execução). Não há agendamento automático
+configurado por padrão — é disparado sob demanda, mas pode-se adicionar um
+`schedule` ao recurso `databricks_job` no Terraform se quiser rodar em
+intervalos fixos (ex: mensalmente).
+
+Diferenças em relação à versão CLI/GitHub Actions:
+- Usa a chave da storage account (via secret scope `conecta-renal-adls`,
+  já usado pelo SQL Warehouse) em vez de credenciais de Service Principal.
+- Parâmetros vêm de widgets do notebook, não de variáveis de ambiente.
+- É uma cópia adaptada da lógica de `ingest_sih.py` — mudanças relevantes
+  em um devem ser replicadas no outro.
+
 ## Consultando os dados
 
 Os dados no bronze são arquivos Parquet crus — para consultá-los via SQL

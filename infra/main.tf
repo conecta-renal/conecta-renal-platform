@@ -213,3 +213,49 @@ resource "databricks_sql_global_config" "this" {
     "spark.hadoop.fs.azure.account.key.${azurerm_storage_account.datalake.name}.dfs.core.windows.net" = "{{secrets/${databricks_secret_scope.adls.name}/${databricks_secret.adls_storage_key.key}}}"
   }
 }
+
+# ---------------------------------------------------------------------------
+# Databricks Job - ingestao SIH-SUS (equivalente a um Glue Job: cluster
+# efemero que sobe so para a execucao e desliga ao final)
+# ---------------------------------------------------------------------------
+
+data "databricks_spark_version" "latest_lts" {
+  long_term_support = true
+}
+
+data "databricks_node_type" "smallest" {
+  local_disk = true
+}
+
+resource "databricks_notebook" "ingest_sih_job" {
+  path     = "/Shared/conecta-renal/ingest_sih_job"
+  language = "PYTHON"
+  source   = "${path.module}/../pipelines/datasus/databricks/ingest_sih_job.py"
+}
+
+resource "databricks_job" "ingest_sih" {
+  name = "job-ingest-sih-conecta-renal"
+
+  job_cluster {
+    job_cluster_key = "main"
+
+    new_cluster {
+      spark_version = data.databricks_spark_version.latest_lts.id
+      node_type_id  = data.databricks_node_type.smallest.id
+      num_workers   = 1
+    }
+  }
+
+  task {
+    task_key         = "ingest"
+    job_cluster_key  = "main"
+
+    notebook_task {
+      notebook_path = databricks_notebook.ingest_sih_job.path
+      base_parameters = {
+        uf    = "SP"
+        meses = "3"
+      }
+    }
+  }
+}
