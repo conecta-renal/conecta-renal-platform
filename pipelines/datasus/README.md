@@ -5,7 +5,13 @@ do FTP público do DATASUS, com filtro por CIDs de interesse renal.
 
 ## Como rodar localmente
 
-1. Crie um ambiente virtual e instale as dependências:
+1. Use **Python 3.10, 3.11 ou 3.12**. A dependência `pyreaddbc` (usada para
+   descomprimir os arquivos `.dbc`) é uma extensão nativa C e pode não ter
+   wheel pré-compilada para versões muito recentes do Python (ex: 3.14) —
+   nesse caso, o `pip install` tentaria compilar do zero e falharia sem um
+   compilador C/Visual Studio instalado.
+
+2. Crie um ambiente virtual e instale as dependências:
    ```bash
    cd pipelines/datasus
    python -m venv .venv
@@ -13,9 +19,9 @@ do FTP público do DATASUS, com filtro por CIDs de interesse renal.
    pip install -r requirements.txt
    ```
 
-2. (Opcional) Configure as variáveis de ambiente — veja a seção abaixo.
+3. (Opcional) Configure as variáveis de ambiente — veja a seção abaixo.
 
-3. Execute o script:
+4. Execute o script:
    ```bash
    python ingest_sih.py
    ```
@@ -23,6 +29,20 @@ do FTP público do DATASUS, com filtro por CIDs de interesse renal.
 Não é necessário usuário/senha: a conexão com `ftp.datasus.gov.br` é feita
 via FTP anônimo (`anonymous` / senha vazia), que é o acesso público padrão
 do DATASUS.
+
+## Sobre o formato dos arquivos no FTP
+
+O FTP do DATASUS distribui o SIH-SUS em uma **única pasta**, sem
+subdiretórios por ano — `/dissemin/publicos/SIHSUS/200801_/Dados` — contendo
+todos os meses de 2008 em diante. Os arquivos estão em formato **`.dbc`**,
+um DBF comprimido com algoritmo proprietário (PKWare/blast), não legível
+diretamente por bibliotecas de DBF puro. Por isso o script descomprime cada
+`.dbc` para `.dbf` (usando `pyreaddbc.dbc2dbf`) antes de carregar com
+`dbfread`.
+
+Existe também uma pasta legada `/dissemin/publicos/SIHSUS/DBF/{ano}/`,
+organizada por ano — mas ela está parada desde 2014-05 e não recebe mais
+atualizações; não é usada por este pipeline.
 
 ## Variáveis de ambiente disponíveis
 
@@ -63,5 +83,5 @@ N18, N17, Z49, Z940, E11, I10, N04, N03
 - **Arquivo não encontrado no FTP** (mês sem publicação, UF/ano inválido
   etc.): é logado e o script segue para o próximo mês, sem interromper a
   execução.
-- **Arquivo DBF corrompido/ilegível**: é logado e o script segue para o
-  próximo mês.
+- **Arquivo `.dbc` corrompido/ilegível** (falha na descompressão ou na
+  leitura do DBF resultante): é logado e o script segue para o próximo mês.

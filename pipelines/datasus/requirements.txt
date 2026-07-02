@@ -1,3 +1,4 @@
 dbfread
 pandas
 pyarrow
+pyreaddbc
