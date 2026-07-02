@@ -12,6 +12,18 @@ on:
     paths:
       - "infra/**"
 
+# Serializa todas as execucoes deste workflow (plan e apply, PRs e pushes).
+# Sem isso, dois disparos proximos (ex: push seguido de outro push, ou PR
+# atualizado durante um apply em andamento) podem rodar em paralelo contra
+# o mesmo state remoto; se o GitHub cancelar uma execucao no meio do
+# apply, o Terraform nao chega a liberar o lock do blob, deixando o state
+# travado ("state blob is already locked") para a proxima execucao.
+# cancel-in-progress: false garante que novos disparos esperem na fila em
+# vez de cancelar uma execucao em andamento.
+concurrency:
+  group: terraform-conecta-renal-infra
+  cancel-in-progress: false
+
 env:
   ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
   ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
