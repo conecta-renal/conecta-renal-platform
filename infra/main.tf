@@ -190,6 +190,14 @@ resource "databricks_sql_endpoint" "main" {
   auto_stop_mins   = 10
   min_num_clusters = 1
   max_num_clusters = 1
+
+  # Serverless: nao consome a cota de VM da assinatura (roda em capacidade
+  # gerenciada do proprio Databricks). Necessario aqui porque a assinatura
+  # tem cota regional de apenas 4 vCPUs totais em brazilsouth - um
+  # warehouse classico (com VM dedicada) trava indefinidamente em
+  # "CREATING" tentando provisionar VMs que a cota nao permite.
+  enable_serverless_compute = true
+  warehouse_type            = "PRO"
 }
 
 # O Databricks tem seu proprio modelo de permissoes (separado do RBAC do
@@ -228,17 +236,9 @@ resource "databricks_sql_global_config" "this" {
 }
 
 # ---------------------------------------------------------------------------
-# Databricks Job - ingestao SIH-SUS (equivalente a um Glue Job: cluster
+# Databricks Job - ingestao SIH-SUS (equivalente a um Glue Job: compute
 # efemero que sobe so para a execucao e desliga ao final)
 # ---------------------------------------------------------------------------
-
-data "databricks_spark_version" "latest_lts" {
-  long_term_support = true
-}
-
-data "databricks_node_type" "smallest" {
-  local_disk = true
-}
 
 resource "databricks_notebook" "ingest_sih_job" {
   path     = "/Shared/conecta-renal/ingest_sih_job"
@@ -249,19 +249,12 @@ resource "databricks_notebook" "ingest_sih_job" {
 resource "databricks_job" "ingest_sih" {
   name = "job-ingest-sih-conecta-renal"
 
-  job_cluster {
-    job_cluster_key = "main"
-
-    new_cluster {
-      spark_version = data.databricks_spark_version.latest_lts.id
-      node_type_id  = data.databricks_node_type.smallest.id
-      num_workers   = 1
-    }
-  }
-
+  # Sem job_cluster/new_cluster: o task roda em compute serverless. Mesma
+  # razao do SQL Warehouse acima - a assinatura tem cota de apenas 4 vCPUs
+  # totais em brazilsouth, insuficiente para um cluster classico (driver +
+  # worker), que travaria indefinidamente tentando provisionar VMs.
   task {
-    task_key        = "ingest"
-    job_cluster_key = "main"
+    task_key = "ingest"
 
     notebook_task {
       notebook_path = databricks_notebook.ingest_sih_job.path
