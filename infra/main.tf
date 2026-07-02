@@ -18,6 +18,10 @@ terraform {
       source  = "hashicorp/azuread"
       version = "~>2.0"
     }
+    databricks = {
+      source  = "databricks/databricks"
+      version = "~>1.0"
+    }
   }
 }
 
@@ -39,6 +43,14 @@ provider "azuread" {
   tenant_id     = var.tenant_id
   client_id     = var.client_id
   client_secret = var.client_secret
+}
+
+provider "databricks" {
+  host                        = azurerm_databricks_workspace.main.workspace_url
+  azure_client_id             = var.client_id
+  azure_client_secret         = var.client_secret
+  azure_tenant_id             = var.tenant_id
+  azure_workspace_resource_id = azurerm_databricks_workspace.main.id
 }
 
 locals {
@@ -166,4 +178,38 @@ resource "azuread_group" "engenheiros" {
 resource "azuread_group" "readonly" {
   display_name     = "conecta-renal-readonly"
   security_enabled = true
+}
+
+# ---------------------------------------------------------------------------
+# Databricks SQL Warehouse + acesso ao ADLS (Hive metastore classico)
+# ---------------------------------------------------------------------------
+
+resource "databricks_sql_endpoint" "main" {
+  name             = "sqlwh-conecta-renal-dev"
+  cluster_size     = "2X-Small"
+  auto_stop_mins   = 10
+  min_num_clusters = 1
+  max_num_clusters = 1
+}
+
+# Secret scope + secret com a chave da conta de armazenamento, usados para
+# dar ao SQL Warehouse acesso de leitura/escrita ao ADLS via
+# databricks_sql_global_config abaixo. A chave nunca fica em texto puro no
+# codigo: e lida diretamente do state do recurso azurerm_storage_account.
+resource "databricks_secret_scope" "adls" {
+  name = "conecta-renal-adls"
+}
+
+resource "databricks_secret" "adls_storage_key" {
+  scope        = databricks_secret_scope.adls.id
+  key          = "storage-account-key"
+  string_value = azurerm_storage_account.datalake.primary_access_key
+}
+
+resource "databricks_sql_global_config" "this" {
+  security_policy = "DATA_ACCESS_CONTROL"
+
+  data_access_config = {
+    "spark.hadoop.fs.azure.account.key.${azurerm_storage_account.datalake.name}.dfs.core.windows.net" = "{{secrets/${databricks_secret_scope.adls.name}/${databricks_secret.adls_storage_key.key}}}"
+  }
 }

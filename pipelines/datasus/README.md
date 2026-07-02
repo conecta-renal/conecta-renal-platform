@@ -231,6 +231,16 @@ não expõe nenhuma credencial no log. Parâmetros `uf` e `meses` podem ser
 ajustados na tela de execução manual (Actions → Ingest SIH-SUS → Run
 workflow).
 
+## Consultando os dados
+
+Os dados no bronze são arquivos Parquet crus — para consultá-los via SQL
+(Databricks SQL Editor, Power BI, etc.), rode o script
+`sql/create_bronze_sih_table.sql` no **Databricks SQL Editor**, conectado ao
+SQL Warehouse `sqlwh-conecta-renal-dev` (provisionado via Terraform). Ele
+cria a tabela Delta `bronze_sih` a partir do Parquet, pronta para consulta.
+Veja a seção "Passos manuais realizados fora da pipeline" no README raiz do
+projeto para mais detalhes.
+
 ## CIDs filtrados
 
 Registros em que `DIAG_PRINC` ou `DIAG_SECUN` começam com algum dos
