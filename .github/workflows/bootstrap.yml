@@ -1,0 +1,115 @@
+name: Bootstrap Terraform Backend
+
+on:
+  workflow_dispatch:
+
+env:
+  RESOURCE_GROUP: rg-conecta-renal-tfstate
+  STORAGE_ACCOUNT: stconectarenaltf
+  CONTAINER_NAME: tfstate
+  LOCATION: brazilsouth
+
+jobs:
+  bootstrap:
+    name: Provision Terraform Backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: |
+            {
+              "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
+              "tenantId": "${{ secrets.AZURE_TENANT_ID }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+            }
+
+      - name: Create Resource Group (idempotente)
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            exists=$(az group exists --name "$RESOURCE_GROUP")
+            if [ "$exists" = "true" ]; then
+              echo "Resource group '$RESOURCE_GROUP' já existe. Pulando criação."
+            else
+              echo "Criando resource group '$RESOURCE_GROUP'..."
+              az group create \
+                --name "$RESOURCE_GROUP" \
+                --location "$LOCATION"
+            fi
+
+      - name: Create Storage Account (idempotente)
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            existing=$(az storage account list \
+              --resource-group "$RESOURCE_GROUP" \
+              --query "[?name=='$STORAGE_ACCOUNT'].name" \
+              --output tsv)
+            if [ -n "$existing" ]; then
+              echo "Storage account '$STORAGE_ACCOUNT' já existe. Pulando criação."
+            else
+              echo "Criando storage account '$STORAGE_ACCOUNT'..."
+              az storage account create \
+                --name "$STORAGE_ACCOUNT" \
+                --resource-group "$RESOURCE_GROUP" \
+                --location "$LOCATION" \
+                --sku Standard_LRS \
+                --kind StorageV2
+            fi
+
+      - name: Create Storage Container (idempotente)
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            account_key=$(az storage account keys list \
+              --resource-group "$RESOURCE_GROUP" \
+              --account-name "$STORAGE_ACCOUNT" \
+              --query "[0].value" \
+              --output tsv)
+
+            existing=$(az storage container list \
+              --account-name "$STORAGE_ACCOUNT" \
+              --account-key "$account_key" \
+              --query "[?name=='$CONTAINER_NAME'].name" \
+              --output tsv)
+
+            if [ -n "$existing" ]; then
+              echo "Container '$CONTAINER_NAME' já existe. Pulando criação."
+            else
+              echo "Criando container '$CONTAINER_NAME'..."
+              az storage container create \
+                --name "$CONTAINER_NAME" \
+                --account-name "$STORAGE_ACCOUNT" \
+                --account-key "$account_key"
+            fi
+
+      - name: Resumo do backend criado
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            subscription_id=$(az account show --query id --output tsv)
+
+            echo "======================================"
+            echo " Terraform Backend - Resumo"
+            echo "======================================"
+            echo "Resource Group   : $RESOURCE_GROUP"
+            echo "Storage Account  : $STORAGE_ACCOUNT"
+            echo "Container        : $CONTAINER_NAME"
+            echo "Subscription ID  : $subscription_id"
+            echo "Location         : $LOCATION"
+            echo "======================================"
+
+            {
+              echo "### Terraform Backend - Resumo"
+              echo ""
+              echo "| Recurso | Valor |"
+              echo "|---|---|"
+              echo "| Resource Group | \`$RESOURCE_GROUP\` |"
+              echo "| Storage Account | \`$STORAGE_ACCOUNT\` |"
+              echo "| Container | \`$CONTAINER_NAME\` |"
+              echo "| Subscription ID | \`$subscription_id\` |"
+              echo "| Location | \`$LOCATION\` |"
+            } >> "$GITHUB_STEP_SUMMARY"
