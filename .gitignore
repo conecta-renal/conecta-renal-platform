@@ -34,3 +34,11 @@ terraform.rc
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Saida gerada pelos pipelines (dados baixados, parquet, logs)
+pipelines/**/output/
