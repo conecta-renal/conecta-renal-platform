@@ -1,4 +1,18 @@
-# Ingestão SIH-SUS (DATASUS) — Conecta Renal
+# Pipelines DATASUS — Conecta Renal
+
+Scripts de ingestão de fontes do DATASUS, a partir do FTP público, para o
+Conecta Renal. Duas fontes implementadas até agora:
+
+| Fonte | Script | Filtro | Destino no bronze |
+|---|---|---|---|
+| **SIH-SUS** (internações hospitalares) | `ingest_sih.py` | CIDs de interesse renal | `bronze/sih/ano={ano}/mes={mes}/` |
+| **SIA-SUS — APAC Tratamento Dialítico** (acompanhamento de diálise) | `ingest_atd.py` | Nenhum (instrumento já é 100% população renal) | `bronze/atd/ano={ano}/mes={mes}/` |
+
+Ambos seguem a mesma estrutura de código (conexão FTP com retry, download,
+descompressão `.dbc`→`.dbf`, escrita direta no ADLS) — a maior parte das
+seções abaixo vale para os dois, com diferenças pontuadas onde existem.
+
+## SIH-SUS: Ingestão de internações hospitalares
 
 Script de ingestão do SIH-SUS (Sistema de Informações Hospitalares) a partir
 do FTP público do DATASUS, com filtro por CIDs de interesse renal.
@@ -263,7 +277,41 @@ cria a tabela Delta `bronze_sih` a partir do Parquet, pronta para consulta.
 Veja a seção "Passos manuais realizados fora da pipeline" no README raiz do
 projeto para mais detalhes.
 
-## CIDs filtrados
+## SIA-SUS: Acompanhamento de Tratamento Dialítico (ATD)
+
+Script `ingest_atd.py` — ingestão do arquivo **APAC de Tratamento
+Dialítico** do SIA-SUS (Sistema de Informações Ambulatoriais), que traz
+dados clínicos de acompanhamento de diálise: `ATD_HB` (hemoglobina),
+`ATD_FOSFOR` (fósforo), `ATD_KTVSEM` (Kt/V semanal), `ATD_TRU` (taxa de
+redução de ureia), `ATD_ALBUMI` (albumina), `ATD_PTH` (hormônio da
+paratireoide), tipo de acesso vascular, aptidão a transplante, entre
+outros.
+
+Segue exatamente o mesmo padrão de execução do SIH (`python ingest_atd.py`,
+mesmas variáveis de ambiente `DATASUS_UF`/`DATASUS_MESES`/`AZURE_*`), com
+duas diferenças:
+
+- **Caminho no FTP**: mesma pasta base do SIA-SUS
+  (`/dissemin/publicos/SIASUS/200801_/Dados`), arquivos nomeados
+  `ATD{UF}{AA}{MM}.dbc` (ex: `ATDSP2604.dbc`).
+- **Sem filtro de CID**: o instrumento "APAC de Tratamento Dialítico" já é,
+  por natureza, exclusivo de pacientes em diálise — todo registro do
+  arquivo já é população-alvo do Conecta Renal, então o pipeline mantém
+  todos os registros (só seleciona as colunas relevantes).
+
+Layout confirmado contra um arquivo real do FTP (`ATDSP2604.dbc`, 29.665
+registros, 65 colunas), batendo exatamente com o Informe Técnico oficial
+do SIA-SUS.
+
+Grava em `bronze/atd/ano={ano}/mes={mes}/data.parquet`. Para consultar via
+SQL, rode `sql/create_bronze_atd_table.sql` no Databricks SQL Editor
+(cria a tabela Delta `bronze_atd`), mesmo processo do `bronze_sih`.
+
+Mesma automação do SIH: workflow `.github/workflows/ingest-atd.yml`
+(`workflow_dispatch`) e Databricks Job `job-ingest-atd-conecta-renal`
+(`databricks/ingest_atd_job.py`, provisionado via Terraform).
+
+## CIDs filtrados (SIH-SUS)
 
 Registros em que `DIAG_PRINC` ou `DIAG_SECUN` começam com algum dos
 seguintes CIDs são mantidos (os demais são descartados):

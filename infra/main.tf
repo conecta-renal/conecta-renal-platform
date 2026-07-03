@@ -337,3 +337,41 @@ resource "databricks_permissions" "job_usage" {
     permission_level = "CAN_MANAGE_RUN"
   }
 }
+
+# ---------------------------------------------------------------------------
+# Databricks Job - ingestao SIA-SUS / APAC Tratamento Dialitico (mesmo
+# padrao do job de ingestao do SIH acima)
+# ---------------------------------------------------------------------------
+
+resource "databricks_notebook" "ingest_atd_job" {
+  path     = "/Shared/conecta-renal/ingest_atd_job"
+  language = "PYTHON"
+  source   = "${path.module}/../pipelines/datasus/databricks/ingest_atd_job.py"
+}
+
+resource "databricks_job" "ingest_atd" {
+  name = "job-ingest-atd-conecta-renal"
+
+  # Sem job_cluster/new_cluster: compute serverless (mesma razao do job do
+  # SIH - cota de VM insuficiente na assinatura).
+  task {
+    task_key = "ingest"
+
+    notebook_task {
+      notebook_path = databricks_notebook.ingest_atd_job.path
+      base_parameters = {
+        uf    = "SP"
+        meses = "3"
+      }
+    }
+  }
+}
+
+resource "databricks_permissions" "job_atd_usage" {
+  job_id = databricks_job.ingest_atd.id
+
+  access_control {
+    group_name       = "users"
+    permission_level = "CAN_MANAGE_RUN"
+  }
+}

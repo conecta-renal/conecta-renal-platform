@@ -45,3 +45,75 @@ Fontes externas (DataSUS, LIS, WhatsApp)
 
 Toda a infraestrutura é provisionada via Terraform, localizada em [`infra/`](../infra),
 com pipeline de CI/CD em [`.github/workflows/terraform.yml`](../.github/workflows/terraform.yml).
+
+## Fluxo de dados: ingestão DATASUS (SIH-SUS e SIA-SUS)
+
+Esta seção descreve, na prática, onde cada etapa dos pipelines DATASUS
+acontece hoje — importante porque **nenhuma etapa roda "no GitHub"**: o
+GitHub guarda só o código-fonte e, num dos dois caminhos abaixo, empresta
+uma máquina temporária para executar o script. Todo dado real (baixado do
+FTP, filtrado, gravado) passa a existir exclusivamente no Data Lake.
+
+O fluxo é o mesmo para as duas fontes hoje implementadas — muda só o
+subcaminho no bronze e o nome da tabela final:
+
+| Fonte | Pasta no bronze | Tabela Delta |
+|---|---|---|
+| SIH-SUS (internações) | `bronze/sih/` | `bronze_sih` |
+| SIA-SUS — ATD (diálise) | `bronze/atd/` | `bronze_atd` |
+
+```
+FTP DATASUS (anônimo)
+        |
+        v
+[ compute que roda o script de ingestão ]  <- duas opções, mesmo destino
+        |
+        v
+ADLS Gen2 - container "bronze"
+  bronze/{sih|atd}/ano={ano}/mes={mes}/data.parquet   (Parquet cru, um arquivo por mês)
+        |
+        v
+[ SQL rodado manualmente no Databricks SQL Editor ]
+        |
+        v
+ADLS Gen2 - container "bronze"
+  bronze/delta/{sih|atd}/   (tabela Delta, catalogada no Unity Catalog)
+        |
+        v
+Consulta via Databricks SQL Warehouse (sqlwh-conecta-renal-dev) / Power BI
+```
+
+> Ver `pipelines/datasus/README.md` para detalhes de cada fonte.
+
+### Etapa 1 — Carga (bronze cru)
+
+Duas formas de disparar, ambas escrevendo direto no ADLS via SDK do Azure
+(nenhuma persiste dado no GitHub):
+
+| Fonte | Onde dispara | Script | Onde processa | Arquivo |
+|---|---|---|---|---|
+| SIH-SUS | Databricks (Jobs e Pipelines → `job-ingest-sih-conecta-renal` → Run now) | `pipelines/datasus/databricks/ingest_sih_job.py` | Cluster serverless do Databricks | notebook |
+| SIH-SUS | GitHub Actions (`ingest-sih.yml`, `workflow_dispatch`) | `pipelines/datasus/ingest_sih.py` | Runner temporário do GitHub (destruído ao final) | script CLI |
+| SIA-SUS (ATD) | Databricks (Jobs e Pipelines → `job-ingest-atd-conecta-renal` → Run now) | `pipelines/datasus/databricks/ingest_atd_job.py` | Cluster serverless do Databricks | notebook |
+| SIA-SUS (ATD) | GitHub Actions (`ingest-atd.yml`, `workflow_dispatch`) | `pipelines/datasus/ingest_atd.py` | Runner temporário do GitHub (destruído ao final) | script CLI |
+
+### Etapa 2 — Criação/atualização da tabela Delta
+
+**Manual hoje**: rodar `pipelines/datasus/sql/create_bronze_sih_table.sql`
+(ou `create_bronze_atd_table.sql`) no Databricks SQL Editor (conectado ao
+warehouse `sqlwh-conecta-renal-dev`) depois de cada carga nova. Lê o
+Parquet cru e recria a tabela Delta correspondente, catalogada no Unity
+Catalog via a External Location `ext-loc-conecta-renal-bronze` (definida
+em `infra/main.tf`).
+
+### Próximos passos planejados
+
+- [ ] **Automatizar a etapa 2**: hoje a criação/refresh da tabela Delta é
+  manual (rodar o SQL à mão após cada carga). Precisa virar um job
+  disparado automaticamente após a ingestão — candidatos: encadear como
+  segunda task no `databricks_job.ingest_sih` (Terraform), ou um Databricks
+  Job separado agendado (`schedule` no recurso), ou um pipeline do Azure
+  Data Factory orquestrando as duas etapas.
+- [ ] Avaliar se a ingestão (etapa 1) também deve ganhar agendamento
+  automático (hoje é só sob demanda / `workflow_dispatch`), em vez de
+  depender de disparo manual toda vez.

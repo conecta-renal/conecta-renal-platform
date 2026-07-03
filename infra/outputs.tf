@@ -37,3 +37,8 @@ output "databricks_ingest_job_name" {
   description = "Nome do Databricks Job que roda a ingestão SIH-SUS sob demanda (equivalente a um Glue Job)."
   value       = databricks_job.ingest_sih.name
 }
+
+output "databricks_ingest_atd_job_name" {
+  description = "Nome do Databricks Job que roda a ingestão SIA-SUS (ATD) sob demanda (equivalente a um Glue Job)."
+  value       = databricks_job.ingest_atd.name
+}
