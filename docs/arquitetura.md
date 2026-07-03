@@ -61,6 +61,8 @@ subcaminho no bronze e o nome da tabela final:
 |---|---|---|
 | SIH-SUS (internações) | `bronze/sih/` | `bronze_sih` |
 | SIA-SUS — ATD (diálise) | `bronze/atd/` | `bronze_atd` |
+| CNES (estabelecimentos) | `bronze/cnes/` | `bronze_cnes` |
+| SIM (mortalidade) | `bronze/sim/` (só por ano, sem mês) | `bronze_sim` |
 
 ```
 FTP DATASUS (anônimo)
@@ -96,15 +98,20 @@ Duas formas de disparar, ambas escrevendo direto no ADLS via SDK do Azure
 | SIH-SUS | GitHub Actions (`ingest-sih.yml`, `workflow_dispatch`) | `pipelines/datasus/ingest_sih.py` | Runner temporário do GitHub (destruído ao final) | script CLI |
 | SIA-SUS (ATD) | Databricks (Jobs e Pipelines → `job-ingest-atd-conecta-renal` → Run now) | `pipelines/datasus/databricks/ingest_atd_job.py` | Cluster serverless do Databricks | notebook |
 | SIA-SUS (ATD) | GitHub Actions (`ingest-atd.yml`, `workflow_dispatch`) | `pipelines/datasus/ingest_atd.py` | Runner temporário do GitHub (destruído ao final) | script CLI |
+| CNES | Databricks (Jobs e Pipelines → `job-ingest-cnes-conecta-renal` → Run now) | `pipelines/datasus/databricks/ingest_cnes_job.py` | Cluster serverless do Databricks | notebook |
+| CNES | GitHub Actions (`ingest-cnes.yml`, `workflow_dispatch`) | `pipelines/datasus/ingest_cnes.py` | Runner temporário do GitHub (destruído ao final) | script CLI |
+| SIM | Databricks (Jobs e Pipelines → `job-ingest-sim-conecta-renal` → Run now) | `pipelines/datasus/databricks/ingest_sim_job.py` | Cluster serverless do Databricks | notebook |
+| SIM | GitHub Actions (`ingest-sim.yml`, `workflow_dispatch`) | `pipelines/datasus/ingest_sim.py` | Runner temporário do GitHub (destruído ao final) | script CLI |
 
 ### Etapa 2 — Criação/atualização da tabela Delta
 
-**Manual hoje**: rodar `pipelines/datasus/sql/create_bronze_sih_table.sql`
-(ou `create_bronze_atd_table.sql`) no Databricks SQL Editor (conectado ao
-warehouse `sqlwh-conecta-renal-dev`) depois de cada carga nova. Lê o
-Parquet cru e recria a tabela Delta correspondente, catalogada no Unity
-Catalog via a External Location `ext-loc-conecta-renal-bronze` (definida
-em `infra/main.tf`).
+**Manual hoje**: rodar o script SQL correspondente
+(`create_bronze_sih_table.sql`, `create_bronze_atd_table.sql`,
+`create_bronze_cnes_table.sql` ou `create_bronze_sim_table.sql`) no
+Databricks SQL Editor (conectado ao warehouse `sqlwh-conecta-renal-dev`)
+depois de cada carga nova. Lê o Parquet cru e recria a tabela Delta
+correspondente, catalogada no Unity Catalog via a External Location
+`ext-loc-conecta-renal-bronze` (definida em `infra/main.tf`).
 
 ### Próximos passos planejados
 

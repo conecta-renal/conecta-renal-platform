@@ -375,3 +375,79 @@ resource "databricks_permissions" "job_atd_usage" {
     permission_level = "CAN_MANAGE_RUN"
   }
 }
+
+# ---------------------------------------------------------------------------
+# Databricks Job - ingestao CNES / Estabelecimentos (mesmo padrao dos jobs
+# de ingestao acima)
+# ---------------------------------------------------------------------------
+
+resource "databricks_notebook" "ingest_cnes_job" {
+  path     = "/Shared/conecta-renal/ingest_cnes_job"
+  language = "PYTHON"
+  source   = "${path.module}/../pipelines/datasus/databricks/ingest_cnes_job.py"
+}
+
+resource "databricks_job" "ingest_cnes" {
+  name = "job-ingest-cnes-conecta-renal"
+
+  # Sem job_cluster/new_cluster: compute serverless (mesma razao dos
+  # demais jobs - cota de VM insuficiente na assinatura).
+  task {
+    task_key = "ingest"
+
+    notebook_task {
+      notebook_path = databricks_notebook.ingest_cnes_job.path
+      base_parameters = {
+        uf    = "SP"
+        meses = "3"
+      }
+    }
+  }
+}
+
+resource "databricks_permissions" "job_cnes_usage" {
+  job_id = databricks_job.ingest_cnes.id
+
+  access_control {
+    group_name       = "users"
+    permission_level = "CAN_MANAGE_RUN"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Databricks Job - ingestao SIM / Mortalidade (mesmo padrao dos jobs de
+# ingestao acima)
+# ---------------------------------------------------------------------------
+
+resource "databricks_notebook" "ingest_sim_job" {
+  path     = "/Shared/conecta-renal/ingest_sim_job"
+  language = "PYTHON"
+  source   = "${path.module}/../pipelines/datasus/databricks/ingest_sim_job.py"
+}
+
+resource "databricks_job" "ingest_sim" {
+  name = "job-ingest-sim-conecta-renal"
+
+  # Sem job_cluster/new_cluster: compute serverless (mesma razao dos
+  # demais jobs - cota de VM insuficiente na assinatura).
+  task {
+    task_key = "ingest"
+
+    notebook_task {
+      notebook_path = databricks_notebook.ingest_sim_job.path
+      base_parameters = {
+        uf   = "SP"
+        anos = "5"
+      }
+    }
+  }
+}
+
+resource "databricks_permissions" "job_sim_usage" {
+  job_id = databricks_job.ingest_sim.id
+
+  access_control {
+    group_name       = "users"
+    permission_level = "CAN_MANAGE_RUN"
+  }
+}

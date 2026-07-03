@@ -37,7 +37,7 @@ jobs:
           pip install flake8
 
       - name: Syntax check
-        run: python -m py_compile ingest_sih.py ingest_atd.py
+        run: python -m py_compile ingest_sih.py ingest_atd.py ingest_cnes.py ingest_sim.py
 
       - name: Lint with flake8
-        run: flake8 ingest_sih.py ingest_atd.py --max-line-length=120
+        run: flake8 ingest_sih.py ingest_atd.py ingest_cnes.py ingest_sim.py --max-line-length=120
