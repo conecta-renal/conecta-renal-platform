@@ -307,10 +307,9 @@ Grava em `bronze/atd/ano={ano}/mes={mes}/data.parquet`. Para consultar via
 SQL, rode `sql/create_bronze_atd_table.sql` no Databricks SQL Editor
 (cria a tabela Delta `bronze_atd`), mesmo processo do `bronze_sih`.
 
-> **Nota**: diferente do SIH, o ATD ainda não tem workflow do GitHub
-> Actions nem Databricks Job dedicados — por enquanto, roda só via CLI
-> local. Se for usar em produção, replicar o mesmo padrão de
-> `ingest-sih.yml` / `ingest_sih_job.py`.
+Mesma automação do SIH: workflow `.github/workflows/ingest-atd.yml`
+(`workflow_dispatch`) e Databricks Job `job-ingest-atd-conecta-renal`
+(`databricks/ingest_atd_job.py`, provisionado via Terraform).
 
 ## CIDs filtrados (SIH-SUS)
 

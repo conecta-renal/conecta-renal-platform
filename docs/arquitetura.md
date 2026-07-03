@@ -83,28 +83,28 @@ ADLS Gen2 - container "bronze"
 Consulta via Databricks SQL Warehouse (sqlwh-conecta-renal-dev) / Power BI
 ```
 
-> A ingestão do SIA-SUS (ATD) hoje só tem o script CLI
-> (`pipelines/datasus/ingest_atd.py`) — ainda não tem workflow do GitHub
-> Actions nem Databricks Job dedicados como o SIH tem. Ver
-> `pipelines/datasus/README.md` para detalhes de cada fonte.
+> Ver `pipelines/datasus/README.md` para detalhes de cada fonte.
 
 ### Etapa 1 — Carga (bronze cru)
 
 Duas formas de disparar, ambas escrevendo direto no ADLS via SDK do Azure
 (nenhuma persiste dado no GitHub):
 
-| Onde dispara | Script | Onde processa | Arquivo |
-|---|---|---|---|
-| Databricks (Jobs e Pipelines → `job-ingest-sih-conecta-renal` → Run now) | `pipelines/datasus/databricks/ingest_sih_job.py` | Cluster serverless do Databricks | notebook |
-| GitHub Actions (`ingest-sih.yml`, `workflow_dispatch`) | `pipelines/datasus/ingest_sih.py` | Runner temporário do GitHub (destruído ao final) | script CLI |
+| Fonte | Onde dispara | Script | Onde processa | Arquivo |
+|---|---|---|---|---|
+| SIH-SUS | Databricks (Jobs e Pipelines → `job-ingest-sih-conecta-renal` → Run now) | `pipelines/datasus/databricks/ingest_sih_job.py` | Cluster serverless do Databricks | notebook |
+| SIH-SUS | GitHub Actions (`ingest-sih.yml`, `workflow_dispatch`) | `pipelines/datasus/ingest_sih.py` | Runner temporário do GitHub (destruído ao final) | script CLI |
+| SIA-SUS (ATD) | Databricks (Jobs e Pipelines → `job-ingest-atd-conecta-renal` → Run now) | `pipelines/datasus/databricks/ingest_atd_job.py` | Cluster serverless do Databricks | notebook |
+| SIA-SUS (ATD) | GitHub Actions (`ingest-atd.yml`, `workflow_dispatch`) | `pipelines/datasus/ingest_atd.py` | Runner temporário do GitHub (destruído ao final) | script CLI |
 
 ### Etapa 2 — Criação/atualização da tabela Delta
 
-**Manual hoje**: rodar `pipelines/datasus/sql/create_bronze_sih_table.sql` no
-Databricks SQL Editor (conectado ao warehouse `sqlwh-conecta-renal-dev`)
-depois de cada carga nova. Lê o Parquet cru e recria a tabela `bronze_sih`
-em Delta, catalogada no Unity Catalog via a External Location
-`ext-loc-conecta-renal-bronze` (definida em `infra/main.tf`).
+**Manual hoje**: rodar `pipelines/datasus/sql/create_bronze_sih_table.sql`
+(ou `create_bronze_atd_table.sql`) no Databricks SQL Editor (conectado ao
+warehouse `sqlwh-conecta-renal-dev`) depois de cada carga nova. Lê o
+Parquet cru e recria a tabela Delta correspondente, catalogada no Unity
+Catalog via a External Location `ext-loc-conecta-renal-bronze` (definida
+em `infra/main.tf`).
 
 ### Próximos passos planejados
 
