@@ -42,3 +42,13 @@ output "databricks_ingest_atd_job_name" {
   description = "Nome do Databricks Job que roda a ingestão SIA-SUS (ATD) sob demanda (equivalente a um Glue Job)."
   value       = databricks_job.ingest_atd.name
 }
+
+output "databricks_ingest_cnes_job_name" {
+  description = "Nome do Databricks Job que roda a ingestão do CNES sob demanda (equivalente a um Glue Job)."
+  value       = databricks_job.ingest_cnes.name
+}
+
+output "databricks_ingest_sim_job_name" {
+  description = "Nome do Databricks Job que roda a ingestão do SIM sob demanda (equivalente a um Glue Job)."
+  value       = databricks_job.ingest_sim.name
+}

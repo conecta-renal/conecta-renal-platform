@@ -1,16 +1,18 @@
 # Pipelines DATASUS — Conecta Renal
 
 Scripts de ingestão de fontes do DATASUS, a partir do FTP público, para o
-Conecta Renal. Duas fontes implementadas até agora:
+Conecta Renal. Quatro fontes implementadas até agora:
 
 | Fonte | Script | Filtro | Destino no bronze |
 |---|---|---|---|
 | **SIH-SUS** (internações hospitalares) | `ingest_sih.py` | CIDs de interesse renal | `bronze/sih/ano={ano}/mes={mes}/` |
 | **SIA-SUS — APAC Tratamento Dialítico** (acompanhamento de diálise) | `ingest_atd.py` | Nenhum (instrumento já é 100% população renal) | `bronze/atd/ano={ano}/mes={mes}/` |
+| **CNES** (cadastro de estabelecimentos) | `ingest_cnes.py` | Nenhum (cadastro completo) | `bronze/cnes/ano={ano}/mes={mes}/` |
+| **SIM** (mortalidade) | `ingest_sim.py` | CIDs de interesse renal | `bronze/sim/ano={ano}/` (anual, sem partição por mês) |
 
-Ambos seguem a mesma estrutura de código (conexão FTP com retry, download,
+Todos seguem a mesma estrutura de código (conexão FTP com retry, download,
 descompressão `.dbc`→`.dbf`, escrita direta no ADLS) — a maior parte das
-seções abaixo vale para os dois, com diferenças pontuadas onde existem.
+seções abaixo vale para todos, com diferenças pontuadas onde existem.
 
 ## SIH-SUS: Ingestão de internações hospitalares
 
@@ -204,7 +206,8 @@ tabelas acima).
 | Variável                | Descrição                                                        | Default              |
 |--------------------------|-------------------------------------------------------------------|-----------------------|
 | `DATASUS_UF`            | UF (sigla) cujos arquivos serão baixados                          | `SP`                  |
-| `DATASUS_MESES`         | Janela de meses anteriores à data de execução a serem processados | `24`                  |
+| `DATASUS_MESES`         | Janela de meses anteriores à execução (SIH-SUS, ATD, CNES)         | `24`                  |
+| `DATASUS_ANOS`          | Janela de anos anteriores à execução (SIM apenas, ver seção do SIM) | `5`                   |
 | `AZURE_STORAGE_ACCOUNT` | Storage account (ADLS Gen2) onde os dados serão gravados           | `stconectarenaldev`   |
 | `AZURE_TENANT_ID`       | Tenant ID do Service Principal usado para autenticar no ADLS       | *(obrigatório)*       |
 | `AZURE_CLIENT_ID`       | Client ID do Service Principal usado para autenticar no ADLS       | *(obrigatório)*       |
@@ -311,10 +314,71 @@ Mesma automação do SIH: workflow `.github/workflows/ingest-atd.yml`
 (`workflow_dispatch`) e Databricks Job `job-ingest-atd-conecta-renal`
 (`databricks/ingest_atd_job.py`, provisionado via Terraform).
 
-## CIDs filtrados (SIH-SUS)
+## CNES: Cadastro de Estabelecimentos
 
-Registros em que `DIAG_PRINC` ou `DIAG_SECUN` começam com algum dos
-seguintes CIDs são mantidos (os demais são descartados):
+Script `ingest_cnes.py` — ingestão do arquivo de **Estabelecimentos (ST)**
+do CNES. O CNES tem 13 sub-arquivos (Estabelecimentos, Profissionais,
+Leitos, Equipamentos, etc.); este pipeline traz só o cadastro principal,
+usado para enriquecer os códigos CNES já referenciados no SIH e no ATD
+(ex: nome/tipo/localização do estabelecimento onde o paciente foi
+atendido).
+
+Diferenças em relação ao SIH:
+- **Caminho no FTP**: `/dissemin/publicos/CNES/200508_/Dados/ST` — o CNES
+  usa uma subpasta própria por tipo de arquivo (`ST`, `PF`, `LT`, etc.),
+  diferente da pasta única do SIH/SIA-SUS. Arquivos nomeados
+  `ST{UF}{AA}{MM}.dbc`.
+- **Sem filtro**: é um cadastro, não um registro clínico — mantém todos
+  os estabelecimentos.
+
+Layout confirmado contra um arquivo real do FTP (`STSP2605.dbc`, 113.631
+estabelecimentos, 208 colunas), próximo do Informe Técnico oficial do
+CNES (que documenta 203).
+
+Grava em `bronze/cnes/ano={ano}/mes={mes}/data.parquet`. Para consultar
+via SQL, rode `sql/create_bronze_cnes_table.sql` (cria a tabela Delta
+`bronze_cnes`).
+
+Mesma automação do SIH: workflow `.github/workflows/ingest-cnes.yml`
+(`workflow_dispatch`) e Databricks Job `job-ingest-cnes-conecta-renal`
+(`databricks/ingest_cnes_job.py`, provisionado via Terraform).
+
+## SIM: Mortalidade
+
+Script `ingest_sim.py` — ingestão das Declarações de Óbito do SIM
+(Sistema de Informações sobre Mortalidade), filtrando por CIDs de
+interesse renal no campo `CAUSABAS` (causa básica do óbito).
+
+Diferenças importantes em relação ao SIH:
+- **Publicação anual, não mensal**: arquivos `DO{UF}{AAAA}.dbc` (ex:
+  `DOSP2024.dbc`). Por isso a variável de ambiente é `DATASUS_ANOS`
+  (default: 5), não `DATASUS_MESES`, e o destino no bronze é particionado
+  só por ano: `bronze/sim/ano={ano}/data.parquet` (sem subpasta de mês).
+- **Defasagem maior**: dados de mortalidade exigem investigação e
+  codificação da causa de óbito — o ano mais recente disponível costuma
+  ficar 1-2 anos atrás do ano corrente (confirmamos que 2024 é o ano mais
+  recente disponível para SP; 2025 ainda não publicado).
+- **Extensão inconsistente**: os arquivos variam entre `.dbc` e `.DBC`
+  dependendo do ano (histórico do próprio FTP do DATASUS). O pipeline
+  lista o diretório uma vez por execução e resolve o nome real do arquivo
+  de forma case-insensitive, em vez de assumir a extensão.
+
+Layout confirmado contra um arquivo real do FTP (`DOSP2024.dbc`, 351.616
+óbitos, 87 colunas; 11.485 filtrados como CID renal).
+
+Grava em `bronze/sim/ano={ano}/data.parquet`. Para consultar via SQL,
+rode `sql/create_bronze_sim_table.sql` (cria a tabela Delta `bronze_sim`).
+
+Mesma automação do SIH: workflow `.github/workflows/ingest-sim.yml`
+(`workflow_dispatch`, com input `anos` em vez de `meses`) e Databricks Job
+`job-ingest-sim-conecta-renal` (`databricks/ingest_sim_job.py`,
+provisionado via Terraform).
+
+## CIDs filtrados (SIH-SUS e SIM)
+
+Registros em que `DIAG_PRINC`/`DIAG_SECUN` (SIH-SUS) ou
+`CAUSABAS`/`CAUSABAS_O` (SIM) começam com algum dos seguintes CIDs são
+mantidos (os demais são descartados):
 
 ```
 N18, N17, Z49, Z940, E11, I10, N04, N03
