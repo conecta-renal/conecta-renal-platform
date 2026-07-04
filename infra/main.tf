@@ -325,6 +325,17 @@ resource "databricks_job" "ingest_sih" {
       }
     }
   }
+
+  # O DATASUS publica o SIH mensalmente, com defasagem de 2-3 meses. Roda
+  # todo dia 5, as 06:00 (horario de Brasilia) - alguns dias apos a virada
+  # do mes, para dar folga a eventuais atrasos de publicacao. meses=3 no
+  # base_parameters acima garante que qualquer mes que tenha acabado de
+  # ser publicado seja capturado, mesmo que a execucao anterior o tenha
+  # perdido.
+  schedule {
+    quartz_cron_expression = "0 0 6 5 * ?"
+    timezone_id            = "America/Sao_Paulo"
+  }
 }
 
 # Mesma questao de visibilidade do SQL Warehouse: sem isso, so o Service
@@ -365,6 +376,14 @@ resource "databricks_job" "ingest_atd" {
       }
     }
   }
+
+  # Mesmo raciocinio do SIH: publicacao mensal do DATASUS. Horario
+  # escalonado (07:00) para nao concorrer com o job do SIH pelo mesmo FTP
+  # ao mesmo tempo.
+  schedule {
+    quartz_cron_expression = "0 0 7 5 * ?"
+    timezone_id            = "America/Sao_Paulo"
+  }
 }
 
 resource "databricks_permissions" "job_atd_usage" {
@@ -403,6 +422,14 @@ resource "databricks_job" "ingest_cnes" {
       }
     }
   }
+
+  # Mesmo raciocinio do SIH: publicacao mensal do DATASUS. Horario
+  # escalonado (08:00) para nao concorrer com os outros jobs pelo mesmo
+  # FTP ao mesmo tempo.
+  schedule {
+    quartz_cron_expression = "0 0 8 5 * ?"
+    timezone_id            = "America/Sao_Paulo"
+  }
 }
 
 resource "databricks_permissions" "job_cnes_usage" {
@@ -440,6 +467,15 @@ resource "databricks_job" "ingest_sim" {
         anos = "5"
       }
     }
+  }
+
+  # O SIM e publicado anualmente (nao mensalmente, como os demais), mas
+  # rodar a checagem todo mes garante que capturamos o novo ano assim que
+  # o DATASUS publicar, sem depender de lembrar manualmente. Horario
+  # escalonado (09:00) para nao concorrer com os outros jobs.
+  schedule {
+    quartz_cron_expression = "0 0 9 5 * ?"
+    timezone_id            = "America/Sao_Paulo"
   }
 }
 

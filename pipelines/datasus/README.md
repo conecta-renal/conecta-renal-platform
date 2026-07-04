@@ -256,12 +256,12 @@ Existe também uma versão adaptada do pipeline em
 equivalente, dentro do Azure, a um Glue Job da AWS: um cluster efêmero que
 sobe só para a execução e desliga ao final.
 
-Para disparar manualmente: **Databricks → Workflows → Jobs →
-job-ingest-sih-conecta-renal → Run now** (os parâmetros `uf` e `meses`
-podem ser ajustados na tela de execução). Não há agendamento automático
-configurado por padrão — é disparado sob demanda, mas pode-se adicionar um
-`schedule` ao recurso `databricks_job` no Terraform se quiser rodar em
-intervalos fixos (ex: mensalmente).
+**Agendamento automático**: o job roda sozinho todo dia 5 de cada mês, às
+06:00 (horário de Brasília) — o DATASUS publica os dados mensalmente, com
+alguns dias de folga para eventuais atrasos de publicação. Também pode
+ser disparado manualmente a qualquer momento: **Databricks → Workflows →
+Jobs → job-ingest-sih-conecta-renal → Run now** (os parâmetros `uf` e
+`meses` podem ser ajustados na tela de execução).
 
 Diferenças em relação à versão CLI/GitHub Actions:
 - Usa a chave da storage account (via secret scope `conecta-renal-adls`,
@@ -312,7 +312,8 @@ SQL, rode `sql/create_bronze_atd_table.sql` no Databricks SQL Editor
 
 Mesma automação do SIH: workflow `.github/workflows/ingest-atd.yml`
 (`workflow_dispatch`) e Databricks Job `job-ingest-atd-conecta-renal`
-(`databricks/ingest_atd_job.py`, provisionado via Terraform).
+(`databricks/ingest_atd_job.py`, provisionado via Terraform), agendado
+para rodar sozinho todo dia 5, às 07:00 (horário de Brasília).
 
 ## CNES: Cadastro de Estabelecimentos
 
@@ -341,7 +342,8 @@ via SQL, rode `sql/create_bronze_cnes_table.sql` (cria a tabela Delta
 
 Mesma automação do SIH: workflow `.github/workflows/ingest-cnes.yml`
 (`workflow_dispatch`) e Databricks Job `job-ingest-cnes-conecta-renal`
-(`databricks/ingest_cnes_job.py`, provisionado via Terraform).
+(`databricks/ingest_cnes_job.py`, provisionado via Terraform), agendado
+para rodar sozinho todo dia 5, às 08:00 (horário de Brasília).
 
 ## SIM: Mortalidade
 
@@ -372,7 +374,9 @@ rode `sql/create_bronze_sim_table.sql` (cria a tabela Delta `bronze_sim`).
 Mesma automação do SIH: workflow `.github/workflows/ingest-sim.yml`
 (`workflow_dispatch`, com input `anos` em vez de `meses`) e Databricks Job
 `job-ingest-sim-conecta-renal` (`databricks/ingest_sim_job.py`,
-provisionado via Terraform).
+provisionado via Terraform), agendado para rodar sozinho todo dia 5, às
+09:00 (horário de Brasília) — mesmo o SIM sendo publicado anualmente,
+checar todo mês garante captura do novo ano assim que disponível.
 
 ## CIDs filtrados (SIH-SUS e SIM)
 

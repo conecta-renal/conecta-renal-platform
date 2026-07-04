@@ -115,12 +115,14 @@ correspondente, catalogada no Unity Catalog via a External Location
 
 ### Próximos passos planejados
 
-- [ ] **Automatizar a etapa 2**: hoje a criação/refresh da tabela Delta é
-  manual (rodar o SQL à mão após cada carga). Precisa virar um job
+- [ ] **Automatizar a etapa 2**: hoje a criação/refresh da tabela Delta
+  ainda é manual (rodar o SQL à mão após cada carga). Precisa virar um job
   disparado automaticamente após a ingestão — candidatos: encadear como
-  segunda task no `databricks_job.ingest_sih` (Terraform), ou um Databricks
-  Job separado agendado (`schedule` no recurso), ou um pipeline do Azure
-  Data Factory orquestrando as duas etapas.
-- [ ] Avaliar se a ingestão (etapa 1) também deve ganhar agendamento
-  automático (hoje é só sob demanda / `workflow_dispatch`), em vez de
-  depender de disparo manual toda vez.
+  segunda task nos `databricks_job.*` (Terraform), ou um Databricks Job
+  separado agendado, ou um pipeline do Azure Data Factory orquestrando as
+  duas etapas.
+- [x] ~~Avaliar se a ingestão (etapa 1) também deve ganhar agendamento
+  automático~~ — feito: os 4 Databricks Jobs (SIH, ATD, CNES, SIM) rodam
+  sozinhos todo dia 5 de cada mês (horários escalonados entre 06h-09h,
+  horário de Brasília), via bloco `schedule` no Terraform. Ainda podem ser
+  disparados manualmente a qualquer momento.
